@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"bytes"
 )
 
 type Code struct {
@@ -54,19 +55,24 @@ func (q qualys) do(method, url string, body io.Reader) (*http.Response, error) {
 	req.Header.Add("Authorization", "Basic "+q.baiscAuth())
 	//req.Header.Add("'cache-control", "no-cache")
 
+	fmt.Printf("%+v\n", req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform request %v: %w", req.RequestURI, err)
 	}
 
 	if int(resp.StatusCode) < 200 || int(resp.StatusCode) > 299 {
-		return resp, fmt.Errorf("\"%v\" returned a non-200 error code: %d(%s)", resp.Request.URL, resp.StatusCode, resp.Status)
+		return resp, fmt.Errorf("\"%v\" returned a non-200 error code: %s", resp.Request.URL, resp.Status)
 	}
 
 	return resp, nil
 }
 
 func (q qualys) post(url string, body io.Reader) (*http.Response, error) {
+	if body == nil {
+	body = bytes.NewBufferString(`<?xml version="1.0" encoding="UTF-8" ?> <ServiceRequest>
+</ServiceRequest>`)
+	}
 	return q.do("POST", url, body)
 }
 
