@@ -1,13 +1,14 @@
 package qualys
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/xml"
 	"fmt"
+	"github.com/rs/zerolog/log"
 	"io"
 	"io/ioutil"
 	"net/http"
-	"bytes"
 )
 
 type Code struct {
@@ -55,14 +56,19 @@ func (q qualys) do(method, url string, body io.Reader) (*http.Response, error) {
 	req.Header.Add("Authorization", "Basic "+q.baiscAuth())
 	//req.Header.Add("'cache-control", "no-cache")
 
-	fmt.Printf("%+v\n", req)
+	log.Debug().Msgf("request: %+v", req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform request %v: %w", req.RequestURI, err)
 	}
 
 	if int(resp.StatusCode) < 200 || int(resp.StatusCode) > 299 {
-		return resp, fmt.Errorf("\"%v\" returned a non-200 error code: %s", resp.Request.URL, resp.Status)
+		err := fmt.Errorf("\"%v\" returned a non-200 error code: %s", resp.Request.URL, resp.Status)
+		log.Error().
+			Err(err).
+			Int("StatusCode", resp.StatusCode).
+			Msgf("non-200 status code")
+		return resp, err
 	}
 
 	return resp, nil
@@ -70,7 +76,8 @@ func (q qualys) do(method, url string, body io.Reader) (*http.Response, error) {
 
 func (q qualys) post(url string, body io.Reader) (*http.Response, error) {
 	if body == nil {
-	body = bytes.NewBufferString(`<?xml version="1.0" encoding="UTF-8" ?> <ServiceRequest>
+		log.Info().Msg("adding filler body for no body post call")
+		body = bytes.NewBufferString(`<?xml version="1.0" encoding="UTF-8" ?> <ServiceRequest>
 </ServiceRequest>`)
 	}
 	return q.do("POST", url, body)

@@ -21,7 +21,9 @@ import (
 	"os"
 
 	homedir "github.com/mitchellh/go-homedir"
+	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
+	"time"
 )
 
 var (
@@ -29,6 +31,7 @@ var (
 	username string
 	password string
 	apiUrl   string
+	debug    bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -38,6 +41,13 @@ var rootCmd = &cobra.Command{
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		zerolog.TimeFieldFormat = time.Stamp
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+		if debug {
+			zerolog.SetGlobalLevel(zerolog.DebugLevel)
+		}
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -60,6 +70,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&username, "username", "", "username for basic auth")
 	rootCmd.PersistentFlags().StringVar(&password, "password", "", "password for basic auth")
 	rootCmd.PersistentFlags().StringVar(&apiUrl, "apiurl", "https://qualysapi.qg2.apps.qualys.com/", "base api url")
+	rootCmd.PersistentFlags().BoolVarP(&debug, "verbose", "v", false, "whether to turn on debug logging")
 
 	rootCmd.MarkPersistentFlagRequired("username")
 	rootCmd.MarkPersistentFlagRequired("password")
