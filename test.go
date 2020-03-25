@@ -15,15 +15,16 @@ func Get_Credential_Hash(User string, Password string) string {
 	return base64.StdEncoding.EncodeToString([]byte(User + ":" + Password))
 }
 
-func Get_Command_Line_Args() (string, string, string, string, string) {
+func Get_Command_Line_Args() (string, string, string, string, string, string) {
 	/* Get cmd line paramters */
 	UserPtr := flag.String("User", "BOGUS", "Qualys Account User Name")
 	PasswordPtr := flag.String("Password", "BOGUS", "Qualys Account password")
 	APIURLPtr := flag.String("API URL", "https://qualysapi.qg2.apps.qualys.com/", "Qualys API endpoint")
 	IPPtr := flag.String("IP", "0.0.0.0", "IP address to search for")
 	SDWUUIDPtr := flag.String("SDWUUID", "kweoeimwomc", "ESS SDW UUID")
+	ActionPtr := flag.String("Action", "", "Action to perform (add tag to asset or remove tag from asset")
 	flag.Parse()
-	return *UserPtr, *PasswordPtr, *APIURLPtr, *IPPtr, *SDWUUIDPtr
+	return *UserPtr, *PasswordPtr, *APIURLPtr, *IPPtr, *SDWUUIDPtr, *ActionPtr
 }
 
 type Tag_ID struct {
@@ -57,7 +58,7 @@ type Hostasset_ID struct {
 
 func Get_Hostasset_id() string {
 
-	User, Password, APIURL, IP, SDWUUID := Get_Command_Line_Args()
+	User, Password, APIURL, IP, SDWUUID, Action := Get_Command_Line_Args()
 	encodedcred := Get_Credential_Hash(User, Password)
 
 	url := APIURL + "qps/rest/2.0/search/am/hostasset/"
@@ -80,10 +81,11 @@ func Get_Hostasset_id() string {
 	//fmt.Println(c.ResponseCode)
 
 	if c.ResponseCode == "SUCCESS" {
-		if c.Data.HostAsset.Id != "" {
-			fmt.Println(SDWUUID)
-			url := APIURL + "qps/rest/2.0/create/am/tag"
-			req, _ := http.NewRequest("POST", url, strings.NewReader(`<ServiceRequest>
+		if strings.ToLower(Action) == "add" {
+			if c.Data.HostAsset.Id != "" {
+				fmt.Println(SDWUUID)
+				url := APIURL + "qps/rest/2.0/create/am/tag"
+				req, _ := http.NewRequest("POST", url, strings.NewReader(`<ServiceRequest>
                         <data>
                         <Tag>
                         <name>EES-`+SDWUUID+`</name>
@@ -91,6 +93,63 @@ func Get_Hostasset_id() string {
                         </Tag>
                         </data>
                         </ServiceRequest>`))
+				req.Header.Add("X-requested-with", "GOLANG")
+				req.Header.Add("authorization", "Basic "+encodedcred)
+				/* req.Header.Add() */
+				res, _ := http.DefaultClient.Do(req)
+				defer res.Body.Close()
+				body, _ := ioutil.ReadAll(res.Body)
+				//fmt.Println(res)
+				//fmt.Println(string(body))
+				var d Tag_ID
+
+				xml.Unmarshal(body, &d)
+				//fmt.Println(c.ResponseCode)
+
+				fmt.Printf(d.Data.Tag.Id)
+				if d.Data.Tag.Id != "" {
+					fmt.Println(SDWUUID)
+					url := APIURL + "qps/rest/2.0/update/am/asset/" + c.Data.HostAsset.Id
+					req, _ := http.NewRequest("POST", url, strings.NewReader(`<ServiceRequest>
+                                <filters>
+                                    <Criteria field="id" operator="EQUALS">`+c.Data.HostAsset.Id+`</Criteria>
+                                 </filters>
+                                 <data>
+                                   <Asset>
+                                     <tags>
+                                       <add>
+                                         <TagSimple><id>`+d.Data.Tag.Id+`</id></TagSimple>
+                                       </add>
+                                     </tags> 
+                                   </Asset>
+                                 </data>
+                               </ServiceRequest>`))
+					req.Header.Add("X-requested-with", "GOLANG")
+					req.Header.Add("authorization", "Basic "+encodedcred)
+					/* req.Header.Add() */
+					res, _ := http.DefaultClient.Do(req)
+					defer res.Body.Close()
+					body, _ := ioutil.ReadAll(res.Body)
+					//fmt.Println(res)
+					//fmt.Println(string(body))
+					var a Tag_Add
+
+					xml.Unmarshal(body, &a)
+					//fmt.Println(c.ResponseCode)
+
+					fmt.Printf(a.ResponseCode)
+				}
+			}
+		}
+		if strings.ToLower(Action) == "delete" {
+			fmt.Println(SDWUUID)
+			url := APIURL + "qps/rest/2.0/search/am/tag"
+			req, _ := http.NewRequest("POST", url, strings.NewReader(`<ServiceRequest>
+                        <filters>
+                                <EES-`+SDWUUID+`</name>
+                        <Criteria field="name" operator="EQUALS">EES-`+SDWUUID+`</Criteria>
+                        </filters>
+                </ServiceRequest>`))
 			req.Header.Add("X-requested-with", "GOLANG")
 			req.Header.Add("authorization", "Basic "+encodedcred)
 			/* req.Header.Add() */
@@ -107,21 +166,8 @@ func Get_Hostasset_id() string {
 			fmt.Printf(d.Data.Tag.Id)
 			if d.Data.Tag.Id != "" {
 				fmt.Println(SDWUUID)
-				url := APIURL + "qps/rest/2.0/update/am/asset/" + c.Data.HostAsset.Id
-				req, _ := http.NewRequest("POST", url, strings.NewReader(`<ServiceRequest>
-                                <filters>
-                                    <Criteria field="id" operator="EQUALS">`+c.Data.HostAsset.Id+`</Criteria>
-                                 </filters>
-                                 <data>
-                                   <Asset>
-                                     <tags>
-                                       <add>
-                                         <TagSimple><id>`+d.Data.Tag.Id+`</id></TagSimple>
-                                       </add>
-                                     </tags> 
-                                   </Asset>
-                                 </data>
-                               </ServiceRequest>`))
+				url := APIURL + "qps/rest/2.0/delete/am/tag/" + d.Data.Tag.Id
+				req, _ := http.NewRequest("POST", url, nil)
 				req.Header.Add("X-requested-with", "GOLANG")
 				req.Header.Add("authorization", "Basic "+encodedcred)
 				/* req.Header.Add() */
@@ -130,13 +176,13 @@ func Get_Hostasset_id() string {
 				body, _ := ioutil.ReadAll(res.Body)
 				//fmt.Println(res)
 				//fmt.Println(string(body))
-				var a Tag_Add
+				var a Tag_ID
 
 				xml.Unmarshal(body, &a)
-				//fmt.Println(c.ResponseCode)
 
 				fmt.Printf(a.ResponseCode)
 			}
+
 		}
 		return c.Data.HostAsset.Id
 	} else {
