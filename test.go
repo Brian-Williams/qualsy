@@ -86,7 +86,7 @@ func Get_Hostasset_id() string {
 			req, _ := http.NewRequest("POST", url, strings.NewReader(`<ServiceRequest>
                         <data>
                         <Tag>
-                        <name>`+SDWUUID+`</name>
+                        <name>EES-`+SDWUUID+`</name>
                         <color>#FFFFFF</color>
                         </Tag>
                         </data>
