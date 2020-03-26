@@ -34,6 +34,18 @@ type Hostasset_Delete struct {
 	} `xml:"data"`
 }
 
+
+type Tag struct {
+	Id   string `xml:"id"`
+	Name string `xml:"name"`
+}
+
+type TagAdd struct {
+	Data         struct {
+		Tag Tag `xml:"Asset"`
+	} `xml:"data"`
+}
+
 type Qualys struct {
 	user     string
 	password string
@@ -93,10 +105,15 @@ func (q Qualys) post(url string, body io.Reader) (*http.Response, error) {
 }
 
 func readUnmarshal(body io.ReadCloser, s interface{}) error {
-	b, err := ioutil.ReadAll(body)
+	b, err := func() ([]byte, error) {
+		defer body.Close()
+		b, err := ioutil.ReadAll(body)
+		return b, err
+	}()
 	if err != nil {
 		return err
 	}
+
 	err = xml.Unmarshal(b, s)
 	if err != nil {
 		return err
@@ -179,4 +196,4 @@ func (q Qualys) CleanID(id string) error {
 //</Tag>
 //</data>
 //</ServiceRequest>'
-func CreateTag() {}
+func UpdateAsset() {}
