@@ -36,11 +36,10 @@ func TestEqualBody(t *testing.T) {
 	})
 
 	t.Run("toXML", func(t *testing.T) {
-		b, err := xml.MarshalIndent(serviceRequest, "", "  ")
+		have, err := xmlString(serviceRequest)
 		if err != nil {
 			t.Fatalf("failed to unmarhsal: %s", err)
 		}
-		have := xml.Header + string(b)
 		if x != have {
 			t.Errorf("expected:\n%s\ngot:\n%+v", x, have)
 		}

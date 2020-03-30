@@ -27,21 +27,13 @@ type ResponseBase struct {
 	Count int `xml:"count"`
 }
 
-type HostassetDelete struct {
-	ResponseBase
-	Data struct {
-		HostAsset struct {
-			Id string `xml:"id"`
-		} `xml:"HostAsset"`
-	} `xml:"data"`
-}
-
 type Tag struct {
 	Id   string `xml:"id"`
 	Name string `xml:"name"`
 }
 
 type TagAdd struct {
+	Name string
 	Data struct {
 		Tag Tag `xml:"Asset"`
 	} `xml:"data"`
@@ -53,16 +45,75 @@ type Criteria struct {
 	Criteria string `xml:",chardata"`
 }
 
-// CriteriaServiceRequest
 type CriteriaServiceRequest struct {
 	XMLName  xml.Name   `xml:"ServiceRequest"`
 	Criteria []Criteria `xml:"filters>Criteria"`
+}
+
+type TagInfo struct {
+	Name  string `xml:"name"`
+	Color string `xml:"color"`
+}
+
+//<ServiceRequest>
+//<data>
+//<Tag>
+//<name>EES-smp-testtag-blah</name>
+//<color>#FFFFFF</color>
+//</Tag>
+//</data>
+//</ServiceRequest>'
+type CreateTag struct {
+	XMLName xml.Name `xml:"ServiceRequest"`
+	Tags    TagInfo  `xml:"data>Tag"`
+}
+
+// TODO:
+type CreateTagResponse struct {
+}
+
+//<ServiceRequest>
+//<filters>
+//	<Criteria field="id" operator="EQUALS">`+c.Data.HostAsset.Id+`</Criteria>
+// </filters>
+// <data>
+//   <Asset>
+//	 <tags>
+//	   <add>
+//		 <TagSimple><id>`+d.Data.Tag.Id+`</id></TagSimple>
+//	   </add>
+//	 </tags>
+//   </Asset>
+// </data>
+//</ServiceRequest>
+type UpdateAsset struct {
+	XMLName  xml.Name   `xml:"ServiceRequest"`
+	Criteria []Criteria `xml:"filters>Criteria"`
+	Id       string     `xml:"data>Asset>tags>add>TagSimple>id,chardata"`
 }
 
 type Qualys struct {
 	user     string
 	password string
 	api      string
+}
+
+func xmlString(v interface{}) (string, error) {
+	b, err := xml.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal for xmlString() %+v: %w", v, err)
+	}
+	return xml.Header + string(b), nil
+}
+
+func xmlBytes(v interface{}) ([]byte, error) {
+	b, err := xml.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal for xmlBytes() %+v: %w", v, err)
+	}
+	x := []byte(xml.Header)
+	x = append(x, b...)
+	return x, nil
 }
 
 func New(user, password, api string) Qualys {
@@ -140,6 +191,7 @@ func readUnmarshal(body io.ReadCloser, s interface{}) error {
 }
 
 func checkResponse(body io.ReadCloser) (ResponseBase, error) {
+	defer body.Close()
 	var r ResponseBase
 	err := readUnmarshal(body, &r)
 	if err != nil {
@@ -198,6 +250,15 @@ func (q Qualys) CleanID(id string) error {
 
 // TAG BASED ACTIONS
 
+func (c CriteriaServiceRequest) String() string {
+	s, err := xmlString(c)
+	if err != nil {
+		log.Error().Err(err).Msg("couldn't get string")
+		return ""
+	}
+	return s
+}
+
 // equalBody helps create a post body for an equal operation on a Criteria value
 func equalBody(criteria string) CriteriaServiceRequest {
 	return CriteriaServiceRequest{
@@ -212,20 +273,30 @@ func equalBody(criteria string) CriteriaServiceRequest {
 	}
 }
 
-//curl --request POST \
-//--url 'https://qualysapi.qg2.apps.qualys.com/qps/rest/2.0/create/am/tag?=' \
-//--header 'authorization: Basic ZWFzdGMyYWUxOjhKZW50MzBOZC03' \
-//--header 'cache-control: no-cache' \
-//--header 'content-type: text/xml' \
-//--header 'x-requested-with: Insomnia-Testing' \
-//--cookie JSESSIONID=02871775DAB22E7D1E3B16578444A193 \
-//--data '<?xml version="1.0" encoding="UTF-8" ?>
-//<ServiceRequest>
-//<data>
-//<Tag>
-//<name>EES-smp-testtag-blah</name>
-//<color>#FFFFFF</color>
-//</Tag>
-//</data>
-//</ServiceRequest>'
-func UpdateAsset() {}
+func (q Qualys) CreateTag(tag CreateTag) (interface{}, error) {
+	b, err := xmlBytes(tag)
+	if err != nil {
+		return nil, err
+	}
+	r, err := q.Post("qps/rest/2.0/create/am/tag?=", bytes.NewBuffer(b))
+	defer r.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+	// TODO: get response body to get tag from
+	return nil, nil
+}
+
+func (q Qualys) UpdateOneAsset(update UpdateAsset) (error) {
+	b, err := xmlBytes(update)
+	if err != nil {
+		return err
+	}
+	// TODO: is the filter enough for this to work or does `HostAsset.Id` need to be a param?
+	r, err := q.Post("qps/rest/2.0/update/am/asset/", bytes.NewBuffer(b))
+	defer r.Body.Close()
+	if err != nil {
+		return err
+	}
+	return checkCount(r.Body, 1)
+}
