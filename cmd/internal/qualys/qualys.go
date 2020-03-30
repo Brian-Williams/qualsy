@@ -65,7 +65,7 @@ type TagInfo struct {
 //</ServiceRequest>'
 type CreateTag struct {
 	XMLName xml.Name `xml:"ServiceRequest"`
-	Tags    TagInfo  `xml:"data>Tag"`
+	Tag     TagInfo  `xml:"data>Tag"`
 }
 
 //<ServiceResponse
@@ -82,14 +82,11 @@ type CreateTag struct {
 //</Tag>
 //</data>
 //</ServiceResponse>
-type CreateTagResposne struct {
+type CreateTagResponse struct {
 	ResponseBase
 	Id string `xml:"data>Tag>id"`
 }
 
-// TODO:
-type CreateTagResponse struct {
-}
 
 //<ServiceRequest>
 //<filters>
@@ -125,10 +122,19 @@ func xmlString(v interface{}) (string, error) {
 	return xml.Header + string(b), nil
 }
 
+func (c CriteriaServiceRequest) String() string {
+	s, err := xmlString(c)
+	if err != nil {
+		log.Error().Err(err).Msg("couldn't get string")
+		return ""
+	}
+	return s
+}
+
 func xmlBytes(v interface{}) ([]byte, error) {
 	b, err := xml.Marshal(v)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal for xmlBytes() %+v: %w", v, err)
+		return nil, fmt.Errorf("failed to marshal for xmlBytes(): %w", err)
 	}
 	x := []byte(xml.Header)
 	x = append(x, b...)
@@ -210,19 +216,6 @@ func readUnmarshal(body io.ReadCloser, s interface{}) error {
 }
 
 
-func checkResponseDepr(body io.ReadCloser) (ResponseBase, error) {
-	defer body.Close()
-	var r ResponseBase
-	err := readUnmarshal(body, &r)
-	if err != nil {
-		return r, err
-	}
-	if r.ResponseCode != SUCCESS {
-		return r, fmt.Errorf("non-successful response code: %s", r.ResponseCode)
-	}
-	return r, nil
-}
-
 func checkResponse(base ResponseBase) error {
 	if base.ResponseCode != SUCCESS {
 		return fmt.Errorf("non-successful response code: %s", base.ResponseCode)
@@ -240,9 +233,22 @@ func checkCount(base ResponseBase, n int) error {
 	return nil
 }
 
-// checkCountDepr reads a response that has a count and success. Ensures the action was successful with a count of exactly one
-func checkCountDepr(body io.ReadCloser, n int) error {
-	r, err := checkResponseDepr(body)
+func checkResponseBody(body io.ReadCloser) (ResponseBase, error) {
+	defer body.Close()
+	var r ResponseBase
+	err := readUnmarshal(body, &r)
+	if err != nil {
+		return r, err
+	}
+	if r.ResponseCode != SUCCESS {
+		return r, fmt.Errorf("non-successful response code: %s", r.ResponseCode)
+	}
+	return r, nil
+}
+
+// checkCountBody reads a response that has a count and success. Ensures the action was successful with a count of exactly one
+func checkCountBody(body io.ReadCloser, n int) error {
+	r, err := checkResponseBody(body)
 	if err != nil {
 		return err
 	}
@@ -257,7 +263,7 @@ func (q Qualys) deactivateByID(id string) error {
 	if err != nil {
 		return fmt.Errorf("failed to deactivateByID %s: %w", id, err)
 	}
-	err = checkCountDepr(r.Body, 1)
+	err = checkCountBody(r.Body, 1)
 	if err != nil {
 		return fmt.Errorf("failed to confirm deactivation %s: %w", id, err)
 	}
@@ -269,7 +275,7 @@ func (q Qualys) uninstallByID(id string) error {
 	if err != nil {
 		return fmt.Errorf("failed to uninstallByID %s: %w", id, err)
 	}
-	err = checkCountDepr(r.Body, 1)
+	err = checkCountBody(r.Body, 1)
 	if err != nil {
 		return fmt.Errorf("failed to confirm uninstallByID %s: %w", id, err)
 	}
@@ -286,15 +292,6 @@ func (q Qualys) CleanID(id string) error {
 }
 
 // TAG BASED ACTIONS
-
-func (c CriteriaServiceRequest) String() string {
-	s, err := xmlString(c)
-	if err != nil {
-		log.Error().Err(err).Msg("couldn't get string")
-		return ""
-	}
-	return s
-}
 
 // equalBody helps create a post body for an equal operation on a Criteria value
 func equalBody(criteria string) CriteriaServiceRequest {
@@ -321,7 +318,7 @@ func (q Qualys) CreateTag(tag CreateTag) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var resp CreateTagResposne
+	var resp CreateTagResponse
 	err = readUnmarshal(r.Body, &resp)
 	if err != nil {
 		return "", err
@@ -338,11 +335,10 @@ func (q Qualys) UpdateOneAsset(update UpdateAsset) (error) {
 	if err != nil {
 		return err
 	}
-	// TODO: is the filter enough for this to work or does `HostAsset.Id` need to be a param?
 	r, err := q.Post("qps/rest/2.0/update/am/asset/", bytes.NewBuffer(b))
 	defer r.Body.Close()
 	if err != nil {
 		return err
 	}
-	return checkCountDepr(r.Body, 1)
+	return checkCountBody(r.Body, 1)
 }
