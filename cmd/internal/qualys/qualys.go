@@ -17,13 +17,8 @@ const (
 </ServiceRequest>`
 )
 
-// Code has the "responseCode" which should be present in all Qualys api returns
-type Code struct {
-	ResponseCode string `xml:"responseCode"`
-}
-
 type ResponseBase struct {
-	Code
+	ResponseCode string `xml:"responseCode"`
 	Count int `xml:"count"`
 }
 
@@ -235,7 +230,6 @@ func checkCount(base ResponseBase, n int) error {
 }
 
 func checkResponseBody(body io.ReadCloser) (ResponseBase, error) {
-	defer body.Close()
 	var r ResponseBase
 	err := readUnmarshal(body, &r)
 	if err != nil {
@@ -326,12 +320,14 @@ func (q Qualys) CreateTag(tag CreateTag) (string, error) {
 	}
 	err = checkCount(resp.ResponseBase, 1)
 	if err != nil {
+		log.Debug().Err(err).Msgf("failed count response: %+v", resp)
 		return "", err
 	}
 	return resp.Id, nil
 }
 
-func (q Qualys) UpdateOneAsset(update UpdateAsset) (error) {
+// UpdateAsset updates a single asset
+func (q Qualys) UpdateAsset(update UpdateAsset) (error) {
 	b, err := xmlBytes(update)
 	if err != nil {
 		return err

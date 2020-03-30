@@ -45,3 +45,34 @@ func TestEqualBody(t *testing.T) {
 		}
 	})
 }
+
+func TestCreateTag(t *testing.T) {
+	const (
+		id = "25697744"
+		colr = "#FFFFFF"
+	)
+	expected := fmt.Sprintf(xml.Header + `<ServiceRequest>
+  <data>
+    <Tag>
+      <name>%s</name>
+      <color>%s</color>
+    </Tag>
+  </data>
+</ServiceRequest>`,
+	id, colr)
+	ct := CreateTag{
+		Tag: TagInfo{
+			id,
+			colr,
+		},
+	}
+	actual, err := xmlString(ct)
+	if err != nil {
+		t.Fatalf("failed to get string %+v: %s", ct, err)
+	}
+	if expected != actual {
+		t.Log("expected: ", expected)
+		t.Log("actual: ", actual)
+		t.Errorf("CreateTag expected and actual don't match")
+	}
+}
