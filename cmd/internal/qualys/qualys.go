@@ -139,7 +139,7 @@ func (q Qualys) newRequest(method, url string, body io.Reader) (*http.Request, e
 	req.Header.Add("X-requested-with", "Qualys-go")
 	req.Header.Add("Content-type", "text/xml")
 	req.Header.Add("Authorization", "Basic "+q.baiscAuth())
-	//req.Header.Add("'cache-control", "no-cache")
+	req.Header.Add("'cache-control", "no-cache")
 
 	return req, nil
 }
