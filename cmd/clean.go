@@ -69,7 +69,7 @@ func init() {
 	rootCmd.AddCommand(cleanCmd)
 
 	cleanCmd.PersistentFlags().StringVar(&tag, "tag", "", "search tag for cleaning")
-	cleanCmd.PersistentFlags().BoolVar(&deactivate, "deactivate", true, "deactivate matching agents")
-	cleanCmd.PersistentFlags().BoolVar(&uninstall, "uninstall", true, "uninstall matching agents")
-	cleanCmd.PersistentFlags().BoolVar(&deleteTag, "delete", true, "delete matching tag")
+	cleanCmd.PersistentFlags().BoolVar(&deactivate, "deactivate", false, "deactivate matching agents")
+	cleanCmd.PersistentFlags().BoolVar(&uninstall, "uninstall", false, "uninstall matching agents")
+	cleanCmd.PersistentFlags().BoolVar(&deleteTag, "delete", false, "delete matching tag")
 }
