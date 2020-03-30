@@ -12,7 +12,9 @@ import (
 )
 
 const (
-	SUCCESS = "SUCCESS"
+	SUCCESS   = "SUCCESS"
+	emptyBody = xml.Header + `<ServiceRequest>
+</ServiceRequest>`
 )
 
 // Code has the "responseCode" which should be present in all Qualys api returns
@@ -25,7 +27,7 @@ type ResponseBase struct {
 	Count int `xml:"count"`
 }
 
-type Hostasset_Delete struct {
+type HostassetDelete struct {
 	ResponseBase
 	Data struct {
 		HostAsset struct {
@@ -34,16 +36,27 @@ type Hostasset_Delete struct {
 	} `xml:"data"`
 }
 
-
 type Tag struct {
 	Id   string `xml:"id"`
 	Name string `xml:"name"`
 }
 
 type TagAdd struct {
-	Data         struct {
+	Data struct {
 		Tag Tag `xml:"Asset"`
 	} `xml:"data"`
+}
+
+type Criteria struct {
+	Field    string `xml:"field,attr"`
+	Operator string `xml:"operator,attr"`
+	Criteria string `xml:",chardata"`
+}
+
+// CriteriaServiceRequest
+type CriteriaServiceRequest struct {
+	XMLName  xml.Name   `xml:"ServiceRequest"`
+	Criteria []Criteria `xml:"filters>Criteria"`
 }
 
 type Qualys struct {
@@ -60,10 +73,12 @@ func (q Qualys) baiscAuth() string {
 	return base64.StdEncoding.EncodeToString([]byte(q.user + ":" + q.password))
 }
 
-// do is an opinionated call
-// It handles headers, client, and considers non-200 status codes an error
-func (q Qualys) do(method, url string, body io.Reader) (*http.Response, error) {
+func (q Qualys) newRequest(method, url string, body io.Reader) (*http.Request, error) {
 	end := q.api + url
+
+	if method == "POST" && body == nil {
+		body = bytes.NewBufferString(emptyBody)
+	}
 
 	req, err := http.NewRequest(method, end, body)
 	if err != nil {
@@ -75,10 +90,16 @@ func (q Qualys) do(method, url string, body io.Reader) (*http.Response, error) {
 	req.Header.Add("Authorization", "Basic "+q.baiscAuth())
 	//req.Header.Add("'cache-control", "no-cache")
 
-	log.Debug().Msgf("request: %+v", req)
-	resp, err := http.DefaultClient.Do(req)
+	return req, nil
+}
+
+// do is an opinionated call
+// It considers non-200 status codes an error
+func (q Qualys) do(r *http.Request) (*http.Response, error) {
+	log.Debug().Msgf("request: %+v", r)
+	resp, err := http.DefaultClient.Do(r)
 	if err != nil {
-		return nil, fmt.Errorf("failed to perform request %v: %w", req.RequestURI, err)
+		return nil, fmt.Errorf("failed to perform request %v: %w", r.RequestURI, err)
 	}
 
 	if int(resp.StatusCode) < 200 || int(resp.StatusCode) > 299 {
@@ -93,15 +114,12 @@ func (q Qualys) do(method, url string, body io.Reader) (*http.Response, error) {
 	return resp, nil
 }
 
-// post is an opinionated post to Qualys.
-// It will try to make an invalid call valid before sending
-func (q Qualys) post(url string, body io.Reader) (*http.Response, error) {
-	if body == nil {
-		log.Info().Msg("adding filler body for no body post call")
-		body = bytes.NewBufferString(`<?xml version="1.0" encoding="UTF-8" ?> <ServiceRequest>
-</ServiceRequest>`)
+func (q Qualys) Post(url string, body io.Reader) (*http.Response, error) {
+	req, err := q.newRequest("POST", url, body)
+	if err != nil {
+		return nil, err
 	}
-	return q.do("POST", url, body)
+	return q.do(req)
 }
 
 func readUnmarshal(body io.ReadCloser, s interface{}) error {
@@ -146,7 +164,7 @@ func checkCount(body io.ReadCloser, n int) error {
 }
 
 func (q Qualys) deactivateByID(id string) error {
-	r, err := q.post("qps/rest/2.0/deactivateByID/am/asset/"+id+"?=&module=AGENT_VM%2CAGENT_PC", nil)
+	r, err := q.Post("qps/rest/2.0/deactivateByID/am/asset/"+id+"?=&module=AGENT_VM%2CAGENT_PC", nil)
 	if err != nil {
 		return fmt.Errorf("failed to deactivateByID %s: %w", id, err)
 	}
@@ -158,7 +176,7 @@ func (q Qualys) deactivateByID(id string) error {
 }
 
 func (q Qualys) uninstallByID(id string) error {
-	r, err := q.post("qps/rest/2.0/uninstallByID/am/asset/"+id+"?=", nil)
+	r, err := q.Post("qps/rest/2.0/uninstallByID/am/asset/"+id+"?=", nil)
 	if err != nil {
 		return fmt.Errorf("failed to uninstallByID %s: %w", id, err)
 	}
@@ -179,6 +197,20 @@ func (q Qualys) CleanID(id string) error {
 }
 
 // TAG BASED ACTIONS
+
+// equalBody helps create a post body for an equal operation on a Criteria value
+func equalBody(criteria string) CriteriaServiceRequest {
+	return CriteriaServiceRequest{
+		XMLName: xml.Name{Local: "ServiceRequest"},
+		Criteria: []Criteria{
+			{
+				Field:    "name",
+				Operator: "EQUALS",
+				Criteria: criteria,
+			},
+		},
+	}
+}
 
 //curl --request POST \
 //--url 'https://qualysapi.qg2.apps.qualys.com/qps/rest/2.0/create/am/tag?=' \
