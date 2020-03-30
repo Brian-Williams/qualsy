@@ -220,6 +220,7 @@ func checkResponse(base ResponseBase) error {
 	if base.ResponseCode != SUCCESS {
 		return fmt.Errorf("non-successful response code: %s", base.ResponseCode)
 	}
+	return nil
 }
 
 func checkCount(base ResponseBase, n int) error {
@@ -228,7 +229,7 @@ func checkCount(base ResponseBase, n int) error {
 		return err
 	}
 	if base.Count != n {
-		return fmt.Errorf("expected exactly %d count, got %d", n, r.Count)
+		return fmt.Errorf("expected exactly %d count, got %d", n, base.Count)
 	}
 	return nil
 }
