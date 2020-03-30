@@ -18,9 +18,9 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
-	"github.com/Brian-Williams/qualsy/cmd/internal/qualys"
 	"encoding/xml"
+	"github.com/Brian-Williams/qualsy/cmd/internal/qualys"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -38,7 +38,7 @@ var tagCmd = &cobra.Command{
 		body := qualys.CreateTag{
 			XMLName: xml.Name{Local: "ServiceRequest"},
 			Tag: qualys.TagInfo{
-				Name: name,
+				Name:  name,
 				Color: color,
 			},
 		}
@@ -49,7 +49,7 @@ var tagCmd = &cobra.Command{
 		fmt.Printf("Successfully created tag %s with id %s\n", body.Tag.Name, tagID)
 
 		if addr != "" {
-			sr := qualys.UpdateAsset{
+			idCrit := qualys.CriteriaServiceRequest{
 				Criteria: []qualys.Criteria{
 					{
 						Field:    "address",
@@ -57,9 +57,22 @@ var tagCmd = &cobra.Command{
 						Criteria: addr,
 					},
 				},
+			}
+			id, err := q.IdFromCriteria(idCrit)
+			if err != nil {
+				return err
+			}
+			sr := qualys.UpdateAsset{
+				Criteria: []qualys.Criteria{
+					{
+						Field:    "id",
+						Operator: "EQUALS",
+						Criteria: id,
+					},
+				},
 				Id: tagID,
 			}
-			err := q.UpdateAsset(sr)
+			err = q.UpdateAsset(sr)
 			if err != nil {
 				return err
 			}

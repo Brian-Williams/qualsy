@@ -1,10 +1,10 @@
 package qualys
 
 import (
-	"testing"
 	"encoding/xml"
 	"fmt"
 	"reflect"
+	"testing"
 )
 
 const (
@@ -48,10 +48,10 @@ func TestEqualBody(t *testing.T) {
 
 func TestCreateTag(t *testing.T) {
 	const (
-		id = "25697744"
+		id   = "25697744"
 		colr = "#FFFFFF"
 	)
-	expected := fmt.Sprintf(xml.Header + `<ServiceRequest>
+	expected := fmt.Sprintf(xml.Header+`<ServiceRequest>
   <data>
     <Tag>
       <name>%s</name>
@@ -59,7 +59,7 @@ func TestCreateTag(t *testing.T) {
     </Tag>
   </data>
 </ServiceRequest>`,
-	id, colr)
+		id, colr)
 	ct := CreateTag{
 		Tag: TagInfo{
 			id,

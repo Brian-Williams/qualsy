@@ -17,9 +17,20 @@ const (
 </ServiceRequest>`
 )
 
+//<?xml version="1.0" encoding="UTF-8"?>
+//<ServiceResponse
+//xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://qualysapi.qg2.apps.qualys.com/qps/xsd/2.0/am/asset.xsd">
+//<responseCode>INVALID_REQUEST</responseCode>
+//<responseErrorDetails>
+//<errorMessage>Invalid Request</errorMessage>
+//<errorResolution>There were no results corresponding to your request. Please check you request or make sure you have permission for the specified action.</errorResolution>
+//</responseErrorDetails>
+//</ServiceResponse>
 type ResponseBase struct {
-	ResponseCode string `xml:"responseCode"`
-	Count int `xml:"count"`
+	ResponseCode    string `xml:"responseCode"`
+	ErrorMessage    string `xml:"responseErrorDetails>errorMessage"`
+	ErrorResolution string `xml:"responseErrorDetails>errorResolution"`
+	Count           int    `xml:"count"`
 }
 
 type Tag struct {
@@ -82,7 +93,6 @@ type CreateTagResponse struct {
 	Id string `xml:"data>Tag>id"`
 }
 
-
 //<ServiceRequest>
 //<filters>
 //	<Criteria field="id" operator="EQUALS">`+c.Data.HostAsset.Id+`</Criteria>
@@ -100,7 +110,7 @@ type CreateTagResponse struct {
 type UpdateAsset struct {
 	XMLName  xml.Name   `xml:"ServiceRequest"`
 	Criteria []Criteria `xml:"filters>Criteria"`
-	Id       string     `xml:"data>Asset>tags>add>TagSimple>id,chardata"`
+	Id       string     `xml:"data>Asset>tags>add>TagSimple>id"`
 }
 
 type Qualys struct {
@@ -210,9 +220,9 @@ func readUnmarshal(body io.ReadCloser, s interface{}) error {
 	return nil
 }
 
-
 func checkResponse(base ResponseBase) error {
 	if base.ResponseCode != SUCCESS {
+		log.Info().Str("Resolution", base.ErrorResolution).Msg(base.ErrorMessage)
 		return fmt.Errorf("non-successful response code: %s", base.ResponseCode)
 	}
 	return nil
@@ -235,10 +245,7 @@ func checkResponseBody(body io.ReadCloser) (ResponseBase, error) {
 	if err != nil {
 		return r, err
 	}
-	if r.ResponseCode != SUCCESS {
-		return r, fmt.Errorf("non-successful response code: %s", r.ResponseCode)
-	}
-	return r, nil
+	return r, checkResponse(r)
 }
 
 // checkCountBody reads a response that has a count and success. Ensures the action was successful with a count of exactly one
@@ -327,7 +334,7 @@ func (q Qualys) CreateTag(tag CreateTag) (string, error) {
 }
 
 // UpdateAsset updates a single asset
-func (q Qualys) UpdateAsset(update UpdateAsset) (error) {
+func (q Qualys) UpdateAsset(update UpdateAsset) error {
 	b, err := xmlBytes(update)
 	if err != nil {
 		return err
@@ -338,4 +345,40 @@ func (q Qualys) UpdateAsset(update UpdateAsset) (error) {
 		return err
 	}
 	return checkCountBody(r.Body, 1)
+}
+
+func PostCritChecker(q Qualys, url string, crit interface{}) error {
+	b, err := xmlBytes(crit)
+	if err != nil {
+		return err
+	}
+	r, err := q.Post(url, bytes.NewBuffer(b))
+	defer r.Body.Close()
+	if err != nil {
+		return err
+	}
+	return checkCountBody(r.Body, 1)
+}
+
+// general helpers
+
+func (q Qualys) IdFromCriteria(ip CriteriaServiceRequest) (id string, err error) {
+	b, err := xmlBytes(ip)
+	if err != nil {
+		return "", err
+	}
+	r, err := q.Post("qps/rest/2.0/search/am/hostasset/?=", bytes.NewBuffer(b))
+	if err != nil {
+		return "", err
+	}
+	type HostID struct {
+		ResponseBase
+		Id string `xml:"data>HostAsset>id"`
+	}
+	var hid HostID
+	err = readUnmarshal(r.Body, &hid)
+	if err != nil {
+		return "", err
+	}
+	return hid.Id, checkCount(hid.ResponseBase, 1)
 }

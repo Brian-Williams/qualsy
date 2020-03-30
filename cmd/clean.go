@@ -16,38 +16,60 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/Brian-Williams/qualsy/cmd/internal/qualys"
 	"github.com/spf13/cobra"
+)
+
+var (
+	tag        string
+	deactivate bool
+	uninstall  bool
+	deleteTag  bool
 )
 
 // cleanCmd represents the clean command
 var cleanCmd = &cobra.Command{
 	Use:   "clean",
-	Short: "Deactivate and uninstall a host by id",
+	Short: "Clean data with a criteria",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		q := qualys.New(username, password, apiUrl)
-		fmt.Println("Cleaning out id: " + hostID)
-		err := q.CleanID(hostID)
-		if err != nil {
-			return err
+		crit := qualys.CriteriaServiceRequest{
+			Criteria: []qualys.Criteria{
+				{
+					Field:    "tagName",
+					Operator: "EQUALS",
+					Criteria: tag,
+				},
+			},
 		}
-		fmt.Println("Successfully removed id: " + hostID)
+		if deactivate {
+			err := qualys.PostCritChecker(q, "qps/rest/2.0/deactivate/am/asset?=&module=AGENT_VM%2CAGENT_PC", crit)
+			if err != nil {
+				return err
+			}
+		}
+		if uninstall {
+			err := qualys.PostCritChecker(q, "qps/rest/2.0/uninstall/am/asset?=", crit)
+			if err != nil {
+				return err
+			}
+		}
+		if deleteTag {
+			crit.Criteria[0].Field = "name"
+			err := qualys.PostCritChecker(q, "qps/rest/2.0/delete/am/tag/", crit)
+			if err != nil {
+				return err
+			}
+		}
 		return nil
 	},
 }
 
 func init() {
-	hostidCmd.AddCommand(cleanCmd)
+	rootCmd.AddCommand(cleanCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// cleanCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// cleanCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	cleanCmd.PersistentFlags().StringVar(&tag, "tag", "", "search tag for cleaning")
+	cleanCmd.PersistentFlags().BoolVar(&deactivate, "deactivate", true, "deactivate matching agents")
+	cleanCmd.PersistentFlags().BoolVar(&uninstall, "uninstall", true, "uninstall matching agents")
+	cleanCmd.PersistentFlags().BoolVar(&deleteTag, "delete", true, "delete matching tag")
 }
