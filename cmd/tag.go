@@ -24,9 +24,9 @@ import (
 )
 
 var (
-	name string
+	name  string
 	color string
-	fqdn string
+	addr  string
 )
 
 // tagCmd represents the tag command
@@ -48,13 +48,13 @@ var tagCmd = &cobra.Command{
 		}
 		fmt.Printf("Successfully created tag %s with id %s\n", body.Tag.Name, tagID)
 
-		if fqdn != "" {
+		if addr != "" {
 			sr := qualys.UpdateAsset{
 				Criteria: []qualys.Criteria{
 					{
-						Field: "fqdn",
+						Field:    "address",
 						Operator: "EQUALS",
-						Criteria: fqdn,
+						Criteria: addr,
 					},
 				},
 				Id: tagID,
@@ -74,5 +74,5 @@ func init() {
 	tagCmd.PersistentFlags().StringVar(&name, "name", "", "name of the tag")
 	tagCmd.MarkPersistentFlagRequired("name")
 	tagCmd.Flags().StringVar(&color, "color", "#FFFFFF", "color of the tag")
-	tagCmd.Flags().StringVar(&fqdn, "tag-fqdn", "", "fqdn to tag with new tag")
+	tagCmd.Flags().StringVar(&addr, "tag-addr", "", "addr to tag with new tag")
 }
