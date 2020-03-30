@@ -21,7 +21,7 @@ func TestEqualBody(t *testing.T) {
 	tag := "abc123"
 	x := fmt.Sprintf(equalCriteriaF, tag)
 	t.Logf("expected xml: %s", x)
-	serviceRequest := equalBody(tag)
+	serviceRequest := EqualBody(tag, "name")
 
 	t.Run("toStruct", func(t *testing.T) {
 		var critWant CriteriaServiceRequest

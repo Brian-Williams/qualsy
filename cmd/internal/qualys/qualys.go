@@ -288,13 +288,13 @@ func (q Qualys) CleanID(id string) error {
 
 // TAG BASED ACTIONS
 
-// equalBody helps create a post body for an equal operation on a Criteria value
-func equalBody(criteria string) CriteriaServiceRequest {
+// EqualBody helps create a post body for an equal name operation on a Criteria value
+func EqualBody(criteria string, field string) CriteriaServiceRequest {
 	return CriteriaServiceRequest{
 		XMLName: xml.Name{Local: "ServiceRequest"},
 		Criteria: []Criteria{
 			{
-				Field:    "name",
+				Field:    field,
 				Operator: "EQUALS",
 				Criteria: criteria,
 			},

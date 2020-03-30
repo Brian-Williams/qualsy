@@ -1,0 +1,78 @@
+/*
+Copyright © 2020 NAME HERE <EMAIL ADDRESS>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package cmd
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+	"github.com/Brian-Williams/qualsy/cmd/internal/qualys"
+	"encoding/xml"
+)
+
+var (
+	name string
+	color string
+	fqdn string
+)
+
+// tagCmd represents the tag command
+var tagCmd = &cobra.Command{
+	Use:   "tag",
+	Short: "Create a tag",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		q := qualys.New(username, password, apiUrl)
+		body := qualys.CreateTag{
+			XMLName: xml.Name{Local: "ServiceRequest"},
+			Tag: qualys.TagInfo{
+				Name: name,
+				Color: color,
+			},
+		}
+		tagID, err := q.CreateTag(body)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Successfully created tag %s with id %s\n", body.Tag.Name, tagID)
+
+		if fqdn != "" {
+			sr := qualys.UpdateAsset{
+				Criteria: []qualys.Criteria{
+					{
+						Field: "fqdn",
+						Operator: "EQUALS",
+						Criteria: fqdn,
+					},
+				},
+				Id: tagID,
+			}
+			err := q.UpdateAsset(sr)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(tagCmd)
+	tagCmd.PersistentFlags().StringVar(&name, "name", "", "name of the tag")
+	tagCmd.MarkPersistentFlagRequired("name")
+	tagCmd.Flags().StringVar(&color, "color", "#FFFFFF", "color of the tag")
+	tagCmd.Flags().StringVar(&fqdn, "tag-fqdn", "", "fqdn to tag with new tag")
+}
