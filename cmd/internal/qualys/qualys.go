@@ -68,6 +68,25 @@ type CreateTag struct {
 	Tags    TagInfo  `xml:"data>Tag"`
 }
 
+//<ServiceResponse
+//xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://qualysapi.qg2.apps.qualys.com/qps/xsd/2.0/am/tag.xsd">
+//<responseCode>SUCCESS</responseCode>
+//<count>1</count>
+//<data>
+//<Tag>
+//<id>25697744</id>
+//<name>EES-smp-testtag-blah</name>
+//<created>2020-03-24T21:38:24Z</created>
+//<modified>2020-03-24T21:38:24Z</modified>
+//<color>#FFFFFF</color>
+//</Tag>
+//</data>
+//</ServiceResponse>
+type CreateTagResposne struct {
+	ResponseBase
+	Id string `xml:"data>Tag>id"`
+}
+
 // TODO:
 type CreateTagResponse struct {
 }
@@ -190,7 +209,8 @@ func readUnmarshal(body io.ReadCloser, s interface{}) error {
 	return nil
 }
 
-func checkResponse(body io.ReadCloser) (ResponseBase, error) {
+
+func checkResponseDepr(body io.ReadCloser) (ResponseBase, error) {
 	defer body.Close()
 	var r ResponseBase
 	err := readUnmarshal(body, &r)
@@ -203,9 +223,26 @@ func checkResponse(body io.ReadCloser) (ResponseBase, error) {
 	return r, nil
 }
 
-// checkCount reads a response that has a count and success. Ensures the action was successful with a count of exactly one
-func checkCount(body io.ReadCloser, n int) error {
-	r, err := checkResponse(body)
+func checkResponse(base ResponseBase) error {
+	if base.ResponseCode != SUCCESS {
+		return fmt.Errorf("non-successful response code: %s", base.ResponseCode)
+	}
+}
+
+func checkCount(base ResponseBase, n int) error {
+	err := checkResponse(base)
+	if err != nil {
+		return err
+	}
+	if base.Count != n {
+		return fmt.Errorf("expected exactly %d count, got %d", n, r.Count)
+	}
+	return nil
+}
+
+// checkCountDepr reads a response that has a count and success. Ensures the action was successful with a count of exactly one
+func checkCountDepr(body io.ReadCloser, n int) error {
+	r, err := checkResponseDepr(body)
 	if err != nil {
 		return err
 	}
@@ -220,7 +257,7 @@ func (q Qualys) deactivateByID(id string) error {
 	if err != nil {
 		return fmt.Errorf("failed to deactivateByID %s: %w", id, err)
 	}
-	err = checkCount(r.Body, 1)
+	err = checkCountDepr(r.Body, 1)
 	if err != nil {
 		return fmt.Errorf("failed to confirm deactivation %s: %w", id, err)
 	}
@@ -232,7 +269,7 @@ func (q Qualys) uninstallByID(id string) error {
 	if err != nil {
 		return fmt.Errorf("failed to uninstallByID %s: %w", id, err)
 	}
-	err = checkCount(r.Body, 1)
+	err = checkCountDepr(r.Body, 1)
 	if err != nil {
 		return fmt.Errorf("failed to confirm uninstallByID %s: %w", id, err)
 	}
@@ -273,18 +310,27 @@ func equalBody(criteria string) CriteriaServiceRequest {
 	}
 }
 
-func (q Qualys) CreateTag(tag CreateTag) (interface{}, error) {
+// CreateTag creates a single tag
+func (q Qualys) CreateTag(tag CreateTag) (string, error) {
 	b, err := xmlBytes(tag)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	r, err := q.Post("qps/rest/2.0/create/am/tag?=", bytes.NewBuffer(b))
 	defer r.Body.Close()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	// TODO: get response body to get tag from
-	return nil, nil
+	var resp CreateTagResposne
+	err = readUnmarshal(r.Body, &resp)
+	if err != nil {
+		return "", err
+	}
+	err = checkCount(resp.ResponseBase, 1)
+	if err != nil {
+		return "", err
+	}
+	return resp.Id, nil
 }
 
 func (q Qualys) UpdateOneAsset(update UpdateAsset) (error) {
@@ -298,5 +344,5 @@ func (q Qualys) UpdateOneAsset(update UpdateAsset) (error) {
 	if err != nil {
 		return err
 	}
-	return checkCount(r.Body, 1)
+	return checkCountDepr(r.Body, 1)
 }
