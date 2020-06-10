@@ -88,7 +88,7 @@ type CreateTag struct {
 //</Tag>
 //</data>
 //</ServiceResponse>
-type CreateTagResponse struct {
+type TagResponse struct {
 	ResponseBase
 	Id string `xml:"data>Tag>id"`
 }
@@ -248,7 +248,7 @@ func checkResponseBody(body io.ReadCloser) (ResponseBase, error) {
 	return r, checkResponse(r)
 }
 
-// checkCountBody reads a response that has a count and success. Ensures the action was successful with a count of exactly one
+// checkCountBody reads a response that has a count and success. Ensures the action was successful with a count of exactly n
 func checkCountBody(body io.ReadCloser, n int) error {
 	r, err := checkResponseBody(body)
 	if err != nil {
@@ -309,6 +309,31 @@ func EqualBody(criteria string, field string) CriteriaServiceRequest {
 	}
 }
 
+// SearchTagExists searches for one tag
+func (q Qualys) SearchTagExists(equalsCriteria string) (string, error) {
+	serviceRequest := EqualBody(equalsCriteria, "name")
+	b, err := xmlBytes(serviceRequest)
+	if err != nil {
+		return "", err
+	}
+	r, err := q.Post("qps/rest/2.0/search/am/tag?=", bytes.NewBuffer(b))
+	defer r.Body.Close()
+	if err != nil {
+		return "", err
+	}
+	var resp TagResponse
+	err = readUnmarshal(r.Body, &resp)
+	if err != nil {
+		return "", err
+	}
+	err = checkCount(resp.ResponseBase, 1)
+	if err != nil {
+		log.Debug().Err(err).Msgf("failed count response: %+v", resp)
+		return "", err
+	}
+	return resp.Id, nil
+}
+
 // CreateTag creates a single tag
 func (q Qualys) CreateTag(tag CreateTag) (string, error) {
 	b, err := xmlBytes(tag)
@@ -320,7 +345,7 @@ func (q Qualys) CreateTag(tag CreateTag) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var resp CreateTagResponse
+	var resp TagResponse
 	err = readUnmarshal(r.Body, &resp)
 	if err != nil {
 		return "", err

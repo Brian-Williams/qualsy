@@ -24,9 +24,10 @@ import (
 )
 
 var (
-	name  string
-	color string
-	addr  string
+	name       string
+	color      string
+	addr       string
+	idempotent bool
 )
 
 // tagCmd represents the tag command
@@ -35,18 +36,26 @@ var tagCmd = &cobra.Command{
 	Short: "Create a tag",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		q := qualys.New(username, password, apiUrl)
-		body := qualys.CreateTag{
-			XMLName: xml.Name{Local: "ServiceRequest"},
-			Tag: qualys.TagInfo{
-				Name:  name,
-				Color: color,
-			},
+		var tagID string
+		if idempotent {
+			tagID, _ = q.SearchTagExists(name)
 		}
-		tagID, err := q.CreateTag(body)
-		if err != nil {
-			return err
+		if tagID != "" {
+			fmt.Printf("Tag '%s' found skipping creation", tagID)
+		} else {
+			body := qualys.CreateTag{
+				XMLName: xml.Name{Local: "ServiceRequest"},
+				Tag: qualys.TagInfo{
+					Name:  name,
+					Color: color,
+				},
+			}
+			tagID, err := q.CreateTag(body)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Successfully created tag %s with id %s\n", body.Tag.Name, tagID)
 		}
-		fmt.Printf("Successfully created tag %s with id %s\n", body.Tag.Name, tagID)
 
 		if addr != "" {
 			idCrit := qualys.CriteriaServiceRequest{
@@ -88,4 +97,6 @@ func init() {
 	tagCmd.MarkPersistentFlagRequired("name")
 	tagCmd.Flags().StringVar(&color, "color", "#FFFFFF", "color of the tag")
 	tagCmd.Flags().StringVar(&addr, "tag-addr", "", "addr to tag with new tag")
+	tagCmd.Flags().BoolVar(&idempotent, "idempotent", false,
+		"idempotent creation of tag, there is no color guarantee to this action")
 }
