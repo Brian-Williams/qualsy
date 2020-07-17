@@ -50,7 +50,8 @@ var tagCmd = &cobra.Command{
 					Color: color,
 				},
 			}
-			tagID, err := q.CreateTag(body)
+			var err error
+			tagID, err = q.CreateTag(body)
 			if err != nil {
 				return err
 			}
